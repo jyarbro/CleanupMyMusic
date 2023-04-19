@@ -1,31 +1,71 @@
 ﻿using TagLib;
 
-var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-var outputFile = Path.Combine(desktopPath, "Output.txt");
-var unsupportedFile = Path.Combine(desktopPath, "Unsupported.txt");
+#if DEBUG
+var musicPath = "\\\\storage\\music\\Music\\";
+#else
+var musicPath = string.Empty;
+#endif
 
+if (args.Length > 0 && !string.IsNullOrEmpty(args[0])) {
+	musicPath = args[0];
+}
+
+try {
+	musicPath = Path.GetFullPath(musicPath);
+}
+catch (Exception e) {
+	Console.WriteLine($"Music path error: {e.Message}");
+	return;
+}
+
+var logPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+
+if (args.Length > 1 && !string.IsNullOrEmpty(args[1])) {
+	logPath = args[1];
+}
+
+try {
+	logPath = Path.GetFullPath(logPath);
+}
+catch (Exception e) {
+	Console.WriteLine($"Log path error: {e.Message}");
+	return;
+}
+
+var outputLog = Path.Combine(logPath, "Output.txt");
+var unsupportedFilesLog = Path.Combine(logPath, "Unsupported.txt");
+
+var songs = new Dictionary<string, Tag>();
 var result = new Dictionary<string, Tag>();
 var unsupported = new List<string>();
 
-RunRecursiveFileAction("\\\\storage\\music\\Music\\", FindDuplicates);
+var rootDirs = Directory.GetDirectories(musicPath);
 
-using StreamWriter outputWriter = new(outputFile);
-using StreamWriter unsupportedWriter = new(unsupportedFile);
+using StreamWriter outputLogWriter = new(outputLog);
+using StreamWriter unsupportedFilesLogWriter = new(unsupportedFilesLog);
+
+try {
+	RunRecursiveFileAction(musicPath, FindSongs);
+	FindDuplicates();
+}
+catch (Exception e) {
+	outputLogWriter.WriteLine($"ERROR ERROR ERROR\n{e.Message}");
+}
 
 if (result.Any()) {
 	foreach (var item in result) {
-		outputWriter.WriteLine($"{item.Key}");
+		outputLogWriter.WriteLine($"{item.Key}");
 	}
 }
 
 if (unsupported.Any()) {
 	foreach (var file in unsupported) {
-		unsupportedWriter.WriteLine(file);
+		unsupportedFilesLogWriter.WriteLine(file);
 	}
 }
 
-outputWriter.Close();
-unsupportedWriter.Close();
+outputLogWriter.Close();
+unsupportedFilesLogWriter.Close();
 
 void RunRecursiveFileAction(string path, Action<string> action) {
 	foreach (var dir in Directory.GetDirectories(path)) {
@@ -35,9 +75,7 @@ void RunRecursiveFileAction(string path, Action<string> action) {
 	}
 }
 
-void FindDuplicates(string path) {
-	var songs = new Dictionary<string, Tag>();
-
+void FindSongs(string path) {
 	foreach (var file in Directory.GetFiles(path)) {
 		try {
 			var extension = Path.GetExtension(file).ToLower();
@@ -56,15 +94,17 @@ void FindDuplicates(string path) {
 				catch (CorruptFileException) { }
 				catch (UnsupportedFormatException) { }
 			}
-			else {
-				if (!unsupported.Contains(file)) {
-					unsupported.Add(file);
-				}
+			else if (!ignore.Contains(extension)
+				&& !unsupported.Contains(file)) {
+
+				unsupported.Add(file);
 			}
 		}
 		catch (ArgumentException) { }
 	}
+}
 
+void FindDuplicates() {
 	var result = new Dictionary<string, Tag>();
 
 	foreach (var kvp in songs) {
