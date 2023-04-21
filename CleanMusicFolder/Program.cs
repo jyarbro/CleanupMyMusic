@@ -1,41 +1,25 @@
-﻿using TagLib;
+﻿// This is written more like a shell script than a .NET app. What on earth am I doing?
+
+using TagLib;
 
 #if DEBUG
 var musicPath = "\\\\storage\\music\\Music\\";
+var logPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
 #else
 var musicPath = string.Empty;
+var logPath = string.Empty;
 #endif
 
-if (args.Length > 0 && !string.IsNullOrEmpty(args[0])) {
-	musicPath = args[0];
-}
-
 try {
-	musicPath = Path.GetFullPath(musicPath);
+	LoadArgs();
 }
-catch (Exception e) {
-	Console.WriteLine($"Music path error: {e.Message}");
-	return;
-}
-
-var logPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-
-if (args.Length > 1 && !string.IsNullOrEmpty(args[1])) {
-	logPath = args[1];
-}
-
-try {
-	logPath = Path.GetFullPath(logPath);
-}
-catch (Exception e) {
-	Console.WriteLine($"Log path error: {e.Message}");
+catch {
 	return;
 }
 
 var outputLog = Path.Combine(logPath, "Output.txt");
 var unsupportedFilesLog = Path.Combine(logPath, "Unsupported.txt");
 
-var songs = new Dictionary<string, Tag>();
 var result = new Dictionary<string, Tag>();
 var unsupported = new List<string>();
 
@@ -45,8 +29,7 @@ using StreamWriter outputLogWriter = new(outputLog);
 using StreamWriter unsupportedFilesLogWriter = new(unsupportedFilesLog);
 
 try {
-	RunRecursiveFileAction(musicPath, FindSongs);
-	FindDuplicates();
+	RunRecursiveFolderAction(musicPath, FindSongs);
 }
 catch (Exception e) {
 	outputLogWriter.WriteLine($"ERROR ERROR ERROR\n{e.Message}");
@@ -67,15 +50,43 @@ if (unsupported.Any()) {
 outputLogWriter.Close();
 unsupportedFilesLogWriter.Close();
 
-void RunRecursiveFileAction(string path, Action<string> action) {
+void LoadArgs() {
+	if (args.Length > 0 && !string.IsNullOrEmpty(args[0])) {
+		musicPath = args[0];
+	}
+
+	try {
+		musicPath = Path.GetFullPath(musicPath);
+	}
+	catch (Exception e) {
+		Console.WriteLine($"Music path error: {e.Message}");
+		return;
+	}
+
+	if (args.Length > 1 && !string.IsNullOrEmpty(args[1])) {
+		logPath = args[1];
+	}
+
+	try {
+		logPath = Path.GetFullPath(logPath);
+	}
+	catch (Exception e) {
+		Console.WriteLine($"Log path error: {e.Message}");
+		return;
+	}
+}
+
+void RunRecursiveFolderAction(string path, Action<string> action) {
 	foreach (var dir in Directory.GetDirectories(path)) {
-		// Run action on deepest folder
-		RunRecursiveFileAction(dir, action);
+		// Run action on deepest folder before shallowest folder.
+		RunRecursiveFolderAction(dir, action);
 		action(dir);
 	}
 }
 
 void FindSongs(string path) {
+	var songs = new Dictionary<string, Tag>();
+	
 	foreach (var file in Directory.GetFiles(path)) {
 		try {
 			var extension = Path.GetExtension(file).ToLower();
@@ -102,9 +113,11 @@ void FindSongs(string path) {
 		}
 		catch (ArgumentException) { }
 	}
+
+	FindDuplicateSongs(songs);
 }
 
-void FindDuplicates() {
+void FindDuplicateSongs(Dictionary<string, Tag> songs) {
 	var result = new Dictionary<string, Tag>();
 
 	foreach (var kvp in songs) {
