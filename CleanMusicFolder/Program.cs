@@ -84,31 +84,31 @@ void RunRecursiveFolderAction(string path, Action<string> action) {
 	}
 }
 
-void FindSongs(string path) {
+void FindSongs(string dirPath) {
 	var songs = new Dictionary<string, Tag>();
 	
-	foreach (var file in Directory.GetFiles(path)) {
+	foreach (var filePath in Directory.GetFiles(dirPath)) {
 		try {
-			var extension = Path.GetExtension(file).ToLower();
+			var extension = Path.GetExtension(filePath).ToLower();
 
 			var extensions = new[] { ".mp3", ".m4a", ".flac" };
 			var ignore = new[] { ".jpg", ".png", ".db", ".pdf" };
 
 			if (extensions.Contains(extension)) {
 				try {
-					var tagFile = TagLib.File.Create(file);
+					var taggedSongFile = TagLib.File.Create(filePath);
 
-					if (tagFile.Tag != null) {
-						songs.Add(file, tagFile.Tag);
+					if (taggedSongFile.Tag != null) {
+						songs.Add(filePath, taggedSongFile.Tag);
 					}
 				}
 				catch (CorruptFileException) { }
 				catch (UnsupportedFormatException) { }
 			}
 			else if (!ignore.Contains(extension)
-				&& !unsupported.Contains(file)) {
+				&& !unsupported.Contains(filePath)) {
 
-				unsupported.Add(file);
+				unsupported.Add(filePath);
 			}
 		}
 		catch (ArgumentException) { }
